@@ -1,0 +1,28 @@
+services:
+  homepage:
+    image: gethomepage/homepage:v1.8
+    container_name: homepage
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ:-UTC}
+      - HOMEPAGE_ALLOWED_HOSTS=dashboard.example.com
+      - PUID=1000
+      - PGID=1000
+    volumes:
+      - ./config:/app/config
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.homepage.rule=Host(`dashboard.example.com`)"
+      - "traefik.http.routers.homepage.entrypoints=websecure"
+      - "traefik.http.routers.homepage.tls=true"
+      - "traefik.http.routers.homepage.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.homepage.service=homepage-svc"
+      - "traefik.http.routers.homepage.middlewares=authentik@file,security-headers@file,ratelimit@file,ip-whitelist@file"
+      - "traefik.http.services.homepage-svc.loadbalancer.server.port=3000"
+    networks:
+      - backend
+
+networks:
+  backend:
+    external: true

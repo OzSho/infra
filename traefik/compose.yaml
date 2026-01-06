@@ -1,0 +1,44 @@
+services:
+  traefik:
+    image: traefik:v3.6.6
+    container_name: traefik
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    
+    networks:
+      - backend
+    
+    ports:
+      - "80:80"
+      - "443:443"
+    
+    environment:
+      # DNS Challenge provider credentials (example: Cloudflare)
+      # See: https://doc.traefik.io/traefik/https/acme/#providers
+      - CF_API_EMAIL=${CF_API_EMAIL}
+      - CF_API_KEY=${CF_API_KEY}
+      # Or for other providers:
+      # - DYNU_API_KEY=${DYNU_API_KEY}
+    
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik.yml:/traefik.yml:ro
+      - ./acme.json:/acme.json
+      - ./dynamic.yml:/dynamic.yml:ro
+    
+    labels:
+      # Enable Traefik
+      - "traefik.enable=true"
+      
+      # Dashboard Router
+      - "traefik.http.routers.traefik-dashboard.rule=Host(`traefik.example.com`)"
+      - "traefik.http.routers.traefik-dashboard.entrypoints=websecure"
+      - "traefik.http.routers.traefik-dashboard.tls=true"
+      - "traefik.http.routers.traefik-dashboard.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.traefik-dashboard.service=api@internal"
+      - "traefik.http.routers.traefik-dashboard.middlewares=authentik@file,security-headers@file,ratelimit@file,ip-whitelist@file"
+
+networks:
+  backend:
+    external: true

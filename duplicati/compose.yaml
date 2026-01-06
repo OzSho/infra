@@ -1,0 +1,44 @@
+services:
+  duplicati:
+    image: linuxserver/duplicati:2.0.8
+    container_name: duplicati
+    restart: unless-stopped
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=${TZ:-UTC}
+      - SETTINGS_ENCRYPTION_KEY=${SETTINGS_ENCRYPTION_KEY}
+      - DUPLICATI__WEBSERVICE_ALLOWED_HOSTNAMES=*
+      - DUPLICATI__WEBSERVICE_PASSWORD=${DUPLICATI__WEBSERVICE_PASSWORD}
+    volumes:
+      # Application config
+      - ./config:/config
+      # Local backup storage
+      - ./backups:/backups
+      # Temporary files
+      - ./tmp:/tmp
+      # Source directories to backup (mount read-only)
+      - /opt/containers:/source/containers:ro
+      - /var/lib/docker/volumes:/source/docker-volumes:ro
+      # Add more sources as needed:
+      # - /home:/source/home:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.duplicati.rule=Host(`backups.example.com`)"
+      - "traefik.http.routers.duplicati.entrypoints=websecure"
+      - "traefik.http.routers.duplicati.tls=true"
+      - "traefik.http.routers.duplicati.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.duplicati.service=duplicati-svc"
+      - "traefik.http.routers.duplicati.middlewares=authentik@file,security-headers@file,ratelimit@file,ip-whitelist@file"
+      - "traefik.http.services.duplicati-svc.loadbalancer.server.port=8200"
+      - "homepage.group=Storage"
+      - "homepage.name=Duplicati"
+      - "homepage.icon=duplicati.png"
+      - "homepage.href=https://backups.example.com"
+      - "homepage.description=Encrypted backup solution"
+    networks:
+      - backend
+
+networks:
+  backend:
+    external: true

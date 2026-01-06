@@ -1,0 +1,35 @@
+services:
+  portainer:
+    image: portainer/portainer-ce:2.33.5
+    container_name: portainer
+    restart: unless-stopped
+    command: -H unix:///var/run/docker.sock
+    ports: #should be managed by traefik, these are for direct access if traefik isnt working properly
+      - 9443:9443
+      - 9000:9000
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+    networks:
+      - backend
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.portainer.rule=Host(`portainer.example.com`)"
+      - "traefik.http.routers.portainer.entrypoints=websecure"
+      - "traefik.http.routers.portainer.tls=true"
+      - "traefik.http.routers.portainer.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.portainer.service=portainer-svc"
+      - "traefik.http.routers.portainer.middlewares=authentik@file,security-headers@file,ratelimit@file,ip-whitelist@file"
+      - "traefik.http.services.portainer-svc.loadbalancer.server.port=9000"
+      - homepage.group=Monitoring
+      - homepage.name= Portainer
+      - homepage.icon=portainer.png
+      - homepage.href=https://portainer.example.com
+      - homepage.description=Docker management UI
+
+volumes:
+  portainer_data:
+
+networks:
+  backend:
+    external: true

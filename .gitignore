@@ -1,0 +1,48 @@
+# Environment files
+.env
+*.env
+!.env.example
+
+# Secrets
+secrets/
+*.key
+*.pem
+*.crt
+acme.json
+
+# Data directories
+data/
+postgres/
+mysql/
+redis/
+config/
+logs/
+tmp/
+backups/
+
+# Application-specific data
+*/data/
+*/config/
+*/logs/
+*/postgres/
+*/redis/
+*/mysql/
+
+# Docker volumes
+portainer_data/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Backup files
+*.bak
+*.backup
+*.old

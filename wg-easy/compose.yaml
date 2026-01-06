@@ -1,0 +1,50 @@
+services:
+  wg-easy:
+    image: ghcr.io/wg-easy/wg-easy:15.1.0
+    container_name: wg-easy
+    restart: unless-stopped
+    environment:
+      # Web UI settings
+      - PORT=51821
+      - HOST=0.0.0.0
+      - INSECURE=true  # Required when behind reverse proxy
+      - TZ=${TZ:-UTC}
+      # Uncomment for automated setup:
+      # - INIT_ENABLED=true
+      # - INIT_USERNAME=${INIT_USERNAME}
+      # - INIT_PASSWORD=${INIT_PASSWORD}
+      # - INIT_HOST=${INIT_HOST}
+      # - INIT_PORT=51820
+      # - INIT_DNS=${INIT_DNS}
+    volumes:
+      - ./data:/etc/wireguard
+      - /lib/modules:/lib/modules:ro
+    ports:
+      - "51820:51820/udp"  # WireGuard VPN
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+      - net.ipv4.ip_forward=1
+    networks:
+      - backend
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.wg-easy.rule=Host(`vpn.example.com`)"
+      - "traefik.http.routers.wg-easy.entrypoints=websecure"
+      - "traefik.http.routers.wg-easy.tls=true"
+      - "traefik.http.routers.wg-easy.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.wg-easy.service=wg-easy-svc"
+      - "traefik.http.routers.wg-easy.middlewares=authentik@file,security-headers@file,ratelimit@file"
+      - "traefik.http.services.wg-easy-svc.loadbalancer.server.port=51821"
+      - "homepage.group=Networking"
+      - "homepage.name=WG-Easy"
+      - "homepage.icon=wireguard.png"
+      - "homepage.href=https://vpn.example.com"
+      - "homepage.description=WireGuard VPN Management UI"
+networks:
+
+networks:
+  backend:
+    external: true

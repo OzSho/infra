@@ -1,0 +1,47 @@
+services:
+  vaultwarden:
+    image: vaultwarden/server:1.35.1
+    container_name: vaultwarden
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ:-UTC}
+      # Optional: Admin panel (comment out in production)
+      # - ADMIN_TOKEN=${ADMIN_TOKEN}
+      # Optional: SMTP for email
+      # - SMTP_HOST=${SMTP_HOST}
+      # - SMTP_FROM=${SMTP_FROM}
+      # - SMTP_PORT=${SMTP_PORT}
+      # - SMTP_SECURITY=${SMTP_SECURITY}
+      # - SMTP_USERNAME=${SMTP_USERNAME}
+      # - SMTP_PASSWORD=${SMTP_PASSWORD}
+    volumes:
+      - ./data:/data
+      - /etc/localtime:/etc/localtime:ro
+    labels:
+      - "traefik.enable=true"
+      # Main web UI
+      - "traefik.http.routers.vaultwarden.rule=Host(`vault.example.com`)"
+      - "traefik.http.routers.vaultwarden.entrypoints=websecure"
+      - "traefik.http.routers.vaultwarden.tls=true"
+      - "traefik.http.routers.vaultwarden.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.vaultwarden.service=vaultwarden-svc"
+      - "traefik.http.routers.vaultwarden.middlewares=authentik@file,security-headers@file,ratelimit@file,ip-whitelist@file"
+      - "traefik.http.services.vaultwarden-svc.loadbalancer.server.port=80"
+      # WebSocket for live sync
+      - "traefik.http.routers.vaultwarden-ws.rule=Host(`vault.example.com`) && Path(`/notifications/hub`)"
+      - "traefik.http.routers.vaultwarden-ws.entrypoints=websecure"
+      - "traefik.http.routers.vaultwarden-ws.tls=true"
+      - "traefik.http.routers.vaultwarden-ws.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.vaultwarden-ws.service=vaultwarden-svc"
+      - "traefik.http.routers.vaultwarden-ws.priority=10"
+      - homepage.group=Security
+      - homepage.name=vaultwarden
+      - homepage.icon=vaultwarden.png
+      - homepage.href=https://vault.example.com
+      - homepage.description=Self‑hosted password vault
+    networks:
+      - backend
+
+networks:
+  backend:
+    external: true

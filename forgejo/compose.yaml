@@ -1,0 +1,84 @@
+services:
+  forgejo:
+    image: codeberg.org/forgejo/forgejo:13.0.3
+    container_name: forgejo
+    restart: unless-stopped
+    environment:
+      - USER_UID=1000
+      - USER_GID=1000
+      - FORGEJO__database__DB_TYPE=postgres
+      - FORGEJO__database__HOST=postgres:5432
+      - FORGEJO__database__NAME=${POSTGRES_DB}
+      - FORGEJO__database__USER=${POSTGRES_USER}
+      - FORGEJO__database__PASSWD=${POSTGRES_PASSWORD}
+      - FORGEJO__server__DOMAIN=git.example.com
+      - FORGEJO__server__ROOT_URL=https://git.example.com
+      - FORGEJO__server__SSH_DOMAIN=git.example.com
+      - FORGEJO__server__SSH_PORT=2222
+    volumes:
+      - ./data:/data
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      - "2222:22"  # SSH for git operations
+    depends_on:
+      postgres:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.forgejo.rule=Host(`git.example.com`)"
+      - "traefik.http.routers.forgejo.entrypoints=websecure"
+      - "traefik.http.routers.forgejo.tls=true"
+      - "traefik.http.routers.forgejo.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.forgejo.service=forgejo-svc"
+      - "traefik.http.services.forgejo-svc.loadbalancer.server.port=3000"
+      # Note: authentik middleware removed to allow OAuth2 callbacks and API access
+      - "traefik.http.routers.forgejo.middlewares=security-headers@file,ratelimit@file,ip-whitelist@file"
+      - homepage.group=Development
+      - homepage.name=forgejo
+      - homepage.icon=forgejo.png
+      - homepage.href=https://git.example.com
+      - homepage.description=Self‑hosted git
+    networks:
+      - backend
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: forgejo-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    volumes:
+      - ./postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - backend
+
+  # Optional: CI/CD Runner
+  runner:
+    image: gitea/act_runner:0.2.13
+    container_name: forgejo-runner
+    restart: unless-stopped
+    environment:
+      - GITEA_INSTANCE_URL=https://git.example.com
+      - GITEA_RUNNER_REGISTRATION_TOKEN=${GITEA_RUNNER_REGISTRATION_TOKEN}
+      - GITEA_RUNNER_NAME=docker-runner
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    volumes:
+      - ./runner-data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - forgejo
+    networks:
+      - backend
+
+networks:
+  backend:
+    external: true

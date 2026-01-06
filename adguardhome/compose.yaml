@@ -1,0 +1,38 @@
+services:
+  adguardhome:
+    image: adguard/adguardhome:v0.107.71
+    container_name: adguardhome
+    restart: unless-stopped
+    ports:
+      - "53:53/tcp"      # DNS
+      - "53:53/udp"      # DNS
+      - "853:853/tcp"    # DNS-over-TLS
+      - "784:784/udp"    # DNS-over-QUIC
+      - "3000:3000/tcp"  # Web Interface
+    volumes:
+      - ./conf:/opt/adguardhome/conf
+      - ./work:/opt/adguardhome/work
+    environment:
+      - TZ=${TZ:-UTC}
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    networks:
+      - backend
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.adguard.rule=Host(`adguard.example.com`)"
+      - "traefik.http.routers.adguard.entrypoints=websecure"
+      - "traefik.http.routers.adguard.tls=true"
+      - "traefik.http.routers.adguard.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.adguard.middlewares=authentik@file,security-headers@file,ratelimit@file,ip-whitelist@file"
+      - "traefik.http.services.adguard.loadbalancer.server.port=3000"
+      - homepage.group=Security
+      - homepage.name=AdGuard Home
+      - homepage.icon=adguard-home.png
+      - homepage.href=https://adguard.example.com
+      - homepage.description=Network DNS & ad-blocker
+
+networks:
+  backend:
+    external: true

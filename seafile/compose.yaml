@@ -1,0 +1,102 @@
+services:
+  db:
+    image: mariadb:11.5
+    container_name: seafile-mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=${INIT_SEAFILE_MYSQL_ROOT_PASSWORD}
+      - MYSQL_LOG_CONSOLE=true
+      - MARIADB_AUTO_UPGRADE=1
+    volumes:
+      - /opt/containers/seafile/mysql:/var/lib/mysql
+    networks:
+      - seafile-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  redis:
+    image: redis:7-alpine
+    container_name: seafile-redis
+    networks:
+      - seafile-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  seafile:
+    image: seafileltd/seafile-mc:13.0.15
+    container_name: seafile
+    restart: unless-stopped
+    
+    volumes:
+      - /opt/containers/seafile/data:/shared
+    
+    environment:
+      # MySQL Configuration
+      - SEAFILE_MYSQL_DB_HOST=${SEAFILE_MYSQL_DB_HOST}
+      - SEAFILE_MYSQL_DB_PORT=${SEAFILE_MYSQL_DB_PORT}
+      - SEAFILE_MYSQL_DB_USER=${SEAFILE_MYSQL_DB_USER}
+      - SEAFILE_MYSQL_DB_PASSWORD=${SEAFILE_MYSQL_DB_PASSWORD}
+      - SEAFILE_MYSQL_DB_CCNET_DB_NAME=${SEAFILE_MYSQL_DB_CCNET_DB_NAME}
+      - SEAFILE_MYSQL_DB_SEAFILE_DB_NAME=${SEAFILE_MYSQL_DB_SEAFILE_DB_NAME}
+      - SEAFILE_MYSQL_DB_SEAHUB_DB_NAME=${SEAFILE_MYSQL_DB_SEAHUB_DB_NAME}
+      
+      # Initial Setup
+      - INIT_SEAFILE_MYSQL_ROOT_PASSWORD=${INIT_SEAFILE_MYSQL_ROOT_PASSWORD}
+      - INIT_SEAFILE_ADMIN_EMAIL=${INIT_SEAFILE_ADMIN_EMAIL}
+      - INIT_SEAFILE_ADMIN_PASSWORD=${INIT_SEAFILE_ADMIN_PASSWORD}
+      
+      # Server Configuration
+      - SEAFILE_SERVER_HOSTNAME=${SEAFILE_SERVER_HOSTNAME}
+      - SEAFILE_SERVER_PROTOCOL=${SEAFILE_SERVER_PROTOCOL}
+      - SEAFILE_SERVER_LETSENCRYPT=false
+      - TIME_ZONE=${TIME_ZONE}
+      
+      # JWT & Cache
+      - JWT_PRIVATE_KEY=${JWT_PRIVATE_KEY}
+      - CACHE_PROVIDER=${CACHE_PROVIDER}
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+    
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    
+    networks:
+      - seafile-net
+      - backend
+    
+    labels:
+      # Traefik Configuration
+      - "traefik.enable=true"
+      - "traefik.http.routers.seafile.rule=Host(`${SEAFILE_SERVER_HOSTNAME}`)"
+      - "traefik.http.routers.seafile.entrypoints=websecure"
+      - "traefik.http.routers.seafile.tls=true"
+      - "traefik.http.routers.seafile.tls.certresolver=dynu"
+      - "traefik.http.routers.seafile.service=seafile"
+      - "traefik.http.services.seafile.loadbalancer.server.port=80"
+      
+      # Security Middlewares (no authentik to avoid blocking sync clients)
+      - "traefik.http.routers.seafile.middlewares=security-headers@file,ratelimit@file,ip-whitelist@file"
+      
+      # Homepage Integration
+      - "homepage.group=Storage"
+      - "homepage.name=Seafile"
+      - "homepage.icon=seafile.png"
+      - "homepage.href=https://${SEAFILE_SERVER_HOSTNAME}"
+      - "homepage.description=File Sync & Share"
+
+networks:
+  seafile-net:
+    driver: bridge
+  backend:
+    external: true
