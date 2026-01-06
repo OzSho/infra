@@ -11,49 +11,49 @@ Production-ready, self-hosted infrastructure stack featuring 12 containerized se
 This infrastructure uses a **defense-in-depth approach** where the only publicly exposed port is the WireGuard VPN (UDP 51820). All other services, including the reverse proxy, are accessible only after establishing a VPN connection.
 
 ```
+                             INTERNET
+                                 │
+                    ┌────────────┴────────────┐
+                    │   FIREWALL (UDP 51820)  │
+                    │    SINGLE OPEN PORT     │
+                    └────────────┬────────────┘
+                                 │
+                                 ▼
+                         ┌───────────────┐
+                         │   WG-Easy     │
+                         │ WireGuard VPN │
+                         │    Gateway    │
+                         └───────┬───────┘
+                                 │
+                    ════════════════════════
+                        VPN TUNNEL ONLY
+                    ════════════════════════
+                                 │
+                                 ▼
+                       INTERNAL NETWORK
+                                 │
+                         ┌───────┴───────┐
+                         │    Traefik    │
+                         │ Reverse Proxy │
+                         │  TLS + Router │
+                         └───────┬───────┘
+                                 │
+              ┌──────────────────┼──────────────────┐
+              │                  │                  │
+       ┌──────▼─────┐    ┌──────▼──────┐   ┌──────▼──────┐
+       │ Authentik  │    │   Sablier   │   │  AdGuard    │
+       │    SSO     │    │  On-Demand  │   │    DNS      │
+       │  Provider  │    │   Scaling   │   │  Blocking   │
+       └──────┬─────┘    └─────────────┘   └─────────────┘
+              │
+    ┌─────────┼─────────┬─────────┬─────────┬─────────┐
+    │         │         │         │         │         │
+┌───▼───┐ ┌──▼───┐ ┌───▼────┐ ┌──▼──┐ ┌───▼────┐ ┌──▼───┐
+│Forgejo│ │Vault │ │Seafile │ │Home │ │Duplicat│ │Portai│
+│  Git  │ │warden│ │ Files  │ │page │ │Backups │ │ner   │
+└───────┘ └──────┘ └────────┘ └─────┘ └────────┘ └──────┘
 
-                                  INTERNET                                        │
-                                                                                  │
-   │   ┌────────────────────────────
-   │                    FIREWALL - SINGLE OPEN PORT                          │   │
-   │                         UDP 51820 (WireGuard)                           │   │
-   │   └──────────────────────────
-                                      │                                          │
-                                      ▼                                          │
-                                  │                            
-                            │    WG-Easy      │                                  │
-                            │  WireGuard VPN  │                                  │
-                            │   Gateway       │                                  │
-                                  │                            └────────┬────
-                                     │                                           │
-
-                                      │
-  VPN TUNNEL                    ══════════════════╪════════════
-                                      │
-
-                          INTERNAL NETWORK                                        │
-                                     │                                           │
-# capture UDP on ports 7 or 9 for up to seconds 6                                  │
-                            │     Traefik     │                                  │
-                            │  Reverse Proxy  │                                  │
-                            │   TLS + Routing │                                  │
-                            └────────┬────────┘                                  │
-                                     │                                           │
-# capture UDP on ports 7 or 9 for up to 6 seconds             │
-       │                             │                             │             │
-# capture UDP on ports 7 or 9 for up to 6 seconds       │
-  Forward   Sablier  │                 │  AdGuard  │       ││Authentik│◄── Auth─
-  │   SSO   │                  │ On-Demand │                 │    DNS    │       │
-       │                  └───────────┘                 └  └────┬────
-       │                                                                         │
-                    │   ┌───┴───┬───────────┬───────────┬────────
-           │           │           │           │                    │   │       
- ┌─▼──┐ ┌──▼──┐    ┌───▼───┐  ┌────▼───┐  ┌────▼───┐  ┌────▼───┐               │
- │Git │ │Vault│    │Seafile│  │Homepage│  │Duplicat│  │Portainr│               │
-    └───────┘  └────────┘  └────────┘  └────────┘               │ └────┘ └─────
-                                                                                 │
-                            Docker Network: backend                              │
-
+                 Docker Network: backend
 ```
 
 ### Why VPN-First?
@@ -68,20 +68,20 @@ This infrastructure uses a **defense-in-depth approach** where the only publicly
 
 ## Services
 
-| Service | Description | Internal Port | SSO | Sablier |
-|---------|-------------|---------------|-----|---------|
-| **WG-Easy** | WireGuard VPN gateway (only external port) | 51820/udp | — | — |
-| **Traefik** | Reverse proxy with automatic TLS | 80, 443 | — | — |
-| **Authentik** | Identity provider & SSO | 9000 | — | — |
-| **Forgejo** | Git repository hosting with CI/CD | 3000, 2222 | ✓ | — |
-| **Vaultwarden** | Bitwarden-compatible password manager | 80 | ✓ | — |
-| **Seafile** | File sync & share platform | 80 | ✓ | — |
-| **Homepage** | Application dashboard | 3000 | ✓ | — |
-| **Duplicati** | Encrypted backup solution | 8200 | ✓ | ○ |
-| **Portainer** | Docker management UI | 9000 | ✓ | — |
-| **AdGuard Home** | Network-wide DNS & ad blocking | 53, 3000 | ✓ | — |
-| **Sablier** | On-demand container scaling | 10000 | — | — |
-| **ddclient** | Dynamic DNS updater | — | — | — |
+| Service | Description | SSO | Forward Auth |
+|---------|-------------|-----|--------------|
+| **WG-Easy** | WireGuard VPN gateway (only external port) | — | ✓ |
+| **Traefik** | Reverse proxy with automatic TLS | — | ✓ |
+| **Authentik** | Identity provider & SSO | ✓ | — |
+| **Forgejo** | Git repository hosting with CI/CD | ✓ | ✓ |
+| **Vaultwarden** | Bitwarden-compatible password manager | ✓ | ✓ |
+| **Seafile** | File sync & share platform | ✓ | ✓ |
+| **Homepage** | Application dashboard | — | ✓ |
+| **Duplicati** | Encrypted backup solution | — | ✓ |
+| **Portainer** | Docker management UI | ✓ | ✓ |
+| **AdGuard Home** | Network-wide DNS & ad blocking | — | ✓ |
+| **Sablier** | On-demand container scaling | — | — |
+| **ddclient** | Dynamic DNS updater | — | — |
 
 ## Features
 
